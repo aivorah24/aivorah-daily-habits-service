@@ -1,0 +1,16 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '20mb' }));
+
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aivorah-daily-habits-service' }));
+
+app.use('/habits', require('./routes/habits'));
+
+const PORT = process.env.PORT || 3012;
+app.listen(PORT, () => {
+  console.log(`Aivorah Daily Habits service running on http://localhost:${PORT}`);
+});
