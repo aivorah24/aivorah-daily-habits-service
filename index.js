@@ -11,6 +11,10 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aivorah-dai
 app.use('/habits', require('./routes/habits'));
 
 const PORT = process.env.PORT || 3012;
-app.listen(PORT, () => {
-  console.log(`Aivorah Daily Habits service running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Aivorah Daily Habits service running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
