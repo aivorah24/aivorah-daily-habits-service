@@ -1,6 +1,23 @@
 const supabase = require('./supabase');
 const { sendPush } = require('./push');
 
+// Students are created in a different service's database
+// (aivorah-students-service, or a legacy monolith account) - this service's
+// own `users` table (which parent_daily_tasks.child_id foreign-keys against)
+// never gets those rows, so creating a task for a real student fails with a
+// FK violation. Only inserts when no local row exists yet - never updates or
+// overwrites one that's already there. Same fix as aivorah-assignments-service.
+async function ensureLocalStudent(id, name, grade, curriculum) {
+  if (!id || !name) return;
+  const { data: existing } = await supabase.from('users').select('id').eq('id', id).maybeSingle();
+  if (existing) return;
+  await supabase.from('users').insert({
+    id, name, role: 'student',
+    grade: grade || null, curriculum: curriculum || null,
+    onboarding_complete: true,
+  });
+}
+
 const STREAK_BONUS_DAYS  = 100;
 const STREAK_BONUS_COINS = 20;
 
@@ -212,7 +229,8 @@ async function getParentTasks(childId) {
   return tasks.map(t => ({ ...t, completedToday: completedSet.has(String(t.id)) }));
 }
 
-async function createParentTask({ parentEmail, childId, label, icon = 'check-circle', coins = 5 }) {
+async function createParentTask({ parentEmail, childId, childName, grade, curriculum, label, icon = 'check-circle', coins = 5 }) {
+  await ensureLocalStudent(childId, childName, grade, curriculum);
   const { data, error } = await supabase.from('parent_daily_tasks').insert({ parent_email: parentEmail, child_id: childId, label: label.trim(), icon, coins }).select().single();
   if (error) throw new Error(error.message);
 

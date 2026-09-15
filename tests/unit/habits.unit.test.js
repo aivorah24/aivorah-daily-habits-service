@@ -278,6 +278,68 @@ describe('createParentTask', () => {
 
     await expect(createParentTask({ parentEmail: 'p@a.com', childId: 'c1', label: 'Read' })).rejects.toThrow('insert failed');
   });
+
+  // Regression tests: a student created in a different service's database
+  // (aivorah-students-service, or a legacy monolith account) never gets a
+  // matching row in THIS service's own `users` table, so
+  // parent_daily_tasks.child_id's FK violates on every attempt.
+  // ensureLocalStudent() must sync a minimal row first, but only ever
+  // INSERT - never touch an existing one.
+  test('a student not yet present locally, with childName provided, gets synced before the task insert succeeds', async () => {
+    const usersInsertCalls = [];
+    supabase.from.mockImplementation((table) => {
+      if (table === 'parent_daily_tasks') return { ...supabase._chain, insert: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), single: jest.fn().mockResolvedValue({ data: { id: 'new-task', label: 'Brush teeth' }, error: null }) };
+      if (table === 'users') {
+        return {
+          select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
+          insert: jest.fn((payload) => { usersInsertCalls.push(payload); return Promise.resolve({ data: payload, error: null }); }),
+        };
+      }
+      return supabase._chain;
+    });
+
+    const result = await createParentTask({
+      parentEmail: 'parent@a.com', childId: 'child-1', childName: 'Sri S', grade: 'Grade 10', curriculum: 'CBSE', label: 'Brush teeth',
+    });
+
+    expect(result).toEqual({ id: 'new-task', label: 'Brush teeth' });
+    expect(usersInsertCalls).toHaveLength(1);
+    expect(usersInsertCalls[0]).toEqual(expect.objectContaining({
+      id: 'child-1', name: 'Sri S', role: 'student', grade: 'Grade 10', curriculum: 'CBSE',
+    }));
+  });
+
+  test('a student already present locally is never re-inserted or overwritten', async () => {
+    const usersInsertCalls = [];
+    supabase.from.mockImplementation((table) => {
+      if (table === 'parent_daily_tasks') return { ...supabase._chain, insert: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), single: jest.fn().mockResolvedValue({ data: { id: 'new-task' }, error: null }) };
+      if (table === 'users') {
+        return {
+          select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: 'child-1' }, error: null }) }) }),
+          insert: jest.fn((payload) => { usersInsertCalls.push(payload); return Promise.resolve({ data: payload, error: null }); }),
+        };
+      }
+      return supabase._chain;
+    });
+
+    const result = await createParentTask({ parentEmail: 'parent@a.com', childId: 'child-1', childName: 'Existing Student', label: 'Read' });
+
+    expect(result).toEqual({ id: 'new-task' });
+    expect(usersInsertCalls).toHaveLength(0);
+  });
+
+  test('no childName provided (legacy caller) behaves exactly as before - no sync attempted, no crash', async () => {
+    const usersInsertCalls = [];
+    supabase.from.mockImplementation((table) => {
+      if (table === 'parent_daily_tasks') return { ...supabase._chain, insert: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), single: jest.fn().mockResolvedValue({ data: null, error: { message: 'insert or update on table "parent_daily_tasks" violates foreign key constraint "parent_daily_tasks_child_id_fkey"' } }) };
+      if (table === 'users') return { ...supabase._chain, insert: jest.fn((payload) => { usersInsertCalls.push(payload); return Promise.resolve({ data: payload, error: null }); }) };
+      return supabase._chain;
+    });
+
+    await expect(createParentTask({ parentEmail: 'parent@a.com', childId: 'child-1', label: 'Read' }))
+      .rejects.toThrow(/foreign key constraint/);
+    expect(usersInsertCalls).toHaveLength(0);
+  });
 });
 
 describe('deleteParentTask', () => {

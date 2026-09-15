@@ -49,10 +49,10 @@ router.get('/parent-tasks', async (req, res) => {
 
 // ── POST /habits/parent-tasks ─────────────────────────────────────────────────
 router.post('/parent-tasks', async (req, res) => {
-  const { parentEmail, childId, label, icon, coins } = req.body;
+  const { parentEmail, childId, childName, grade, curriculum, label, icon, coins } = req.body;
   if (!parentEmail || !childId || !label) return res.status(400).json({ error: 'parentEmail, childId and label required' });
   try {
-    res.json(await createParentTask({ parentEmail, childId, label, icon, coins }));
+    res.json(await createParentTask({ parentEmail, childId, childName, grade, curriculum, label, icon, coins }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

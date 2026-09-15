@@ -119,9 +119,9 @@ describe('POST /habits/parent-tasks', () => {
 
   test('creates the real task with real fields', async () => {
     createParentTask.mockResolvedValue({ id: 'new-task', label: 'Brush teeth' });
-    const res = await request(app).post('/habits/parent-tasks').send({ parentEmail: 'p@a.com', childId: 'c1', label: 'Brush teeth', icon: 'smile', coins: 5 });
+    const res = await request(app).post('/habits/parent-tasks').send({ parentEmail: 'p@a.com', childId: 'c1', childName: 'Sri S', grade: 'Grade 10', curriculum: 'CBSE', label: 'Brush teeth', icon: 'smile', coins: 5 });
     expect(res.status).toBe(200);
-    expect(createParentTask).toHaveBeenCalledWith({ parentEmail: 'p@a.com', childId: 'c1', label: 'Brush teeth', icon: 'smile', coins: 5 });
+    expect(createParentTask).toHaveBeenCalledWith({ parentEmail: 'p@a.com', childId: 'c1', childName: 'Sri S', grade: 'Grade 10', curriculum: 'CBSE', label: 'Brush teeth', icon: 'smile', coins: 5 });
   });
 
   test('a service error maps to 500', async () => {
